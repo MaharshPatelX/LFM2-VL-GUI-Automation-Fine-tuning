@@ -11,6 +11,8 @@ from datasets import load_dataset
 from transformers import AutoProcessor, AutoModelForImageTextToText
 from peft import LoraConfig, get_peft_model
 from trl import SFTConfig, SFTTrainer
+from PIL import Image
+import io
 
 # --------------------------
 # Static configuration
@@ -29,7 +31,6 @@ WARMUP_RATIO  = 0.1
 WEIGHT_DECAY  = 0.01
 LOGGING_STEPS = 10
 SAVE_STEPS    = 1000
-EVAL_STEPS    = 1000
 SAVE_TOTAL_LIMIT = 2
 SEED          = 42
 USE_BF16      = False    # Set True if GPU supports BF16 (e.g., A100, H100)
@@ -44,6 +45,9 @@ if DISABLE_WANDB:
     os.environ["WANDB_DISABLED"] = "true"
 
 torch.manual_seed(SEED)
+
+# Create cache directory
+os.makedirs("cache", exist_ok=True)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype  = torch.bfloat16 if USE_BF16 and torch.cuda.is_bf16_supported() else torch.float16
@@ -106,7 +110,8 @@ def to_messages(example):
         "image": example["image"],
     }
 
-# Add these parameters to speed up future runs:
+# Optimized map operations with multiprocessing and caching
+print("📝 Processing training dataset...")
 train_ds = train_ds.map(
     to_messages, 
     remove_columns=train_ds.column_names,
@@ -114,6 +119,8 @@ train_ds = train_ds.map(
     cache_file_name="cache/train_processed.arrow",  # Cache results
     desc="Processing train data"
 )
+
+print("📝 Processing evaluation dataset...")
 eval_ds = eval_ds.map(
     to_messages, 
     remove_columns=eval_ds.column_names,
@@ -122,15 +129,40 @@ eval_ds = eval_ds.map(
     desc="Processing eval data"
 )
 
-# train_ds = train_ds.map(to_messages, remove_columns=train_ds.column_names)
-# eval_ds  = eval_ds.map(to_messages,  remove_columns=eval_ds.column_names)
-
 # --------------------------
 # Collate: decode images only per batch
 # --------------------------
 def collate_fn(batch):
     texts  = [ex["messages"] for ex in batch]
-    images = [ex["image"] for ex in batch]
+    images = []
+    
+    # Convert images to PIL format if needed
+    for ex in batch:
+        img = ex["image"]
+        if not isinstance(img, Image.Image):
+            # If it's bytes, convert to PIL
+            if isinstance(img, bytes):
+                img = Image.open(io.BytesIO(img)).convert("RGB")
+            # If it's a dict with 'bytes' key (common in HF datasets)
+            elif isinstance(img, dict) and 'bytes' in img:
+                img = Image.open(io.BytesIO(img['bytes'])).convert("RGB")
+            # If it's already a PIL image, keep as is
+            elif hasattr(img, 'convert'):
+                img = img.convert("RGB")
+            else:
+                # Try to handle other formats
+                try:
+                    if hasattr(img, 'save'):  # Likely PIL-like
+                        img = img.convert("RGB")
+                    else:
+                        raise ValueError(f"Unknown image format: {type(img)}")
+                except Exception as e:
+                    print(f"Error converting image: {e}")
+                    print(f"Image type: {type(img)}")
+                    if hasattr(img, '__dict__'):
+                        print(f"Image attributes: {img.__dict__}")
+                    raise
+        images.append(img)
 
     enc = processor.apply_chat_template(
         texts,
@@ -172,7 +204,7 @@ model = get_peft_model(model, lora_cfg)
 model.print_trainable_parameters()
 
 # --------------------------
-# TRL SFT config
+# TRL SFT config (Fixed)
 # --------------------------
 sft_cfg = SFTConfig(
     output_dir=OUT_DIR,
@@ -184,7 +216,7 @@ sft_cfg = SFTConfig(
     warmup_ratio=WARMUP_RATIO,
     weight_decay=WEIGHT_DECAY,
     logging_steps=LOGGING_STEPS,
-    # Remove these eval-related parameters that aren't supported:
+    # Removed unsupported parameters:
     # evaluation_strategy="steps",
     # eval_steps=EVAL_STEPS,
     save_steps=SAVE_STEPS,
@@ -199,7 +231,6 @@ sft_cfg = SFTConfig(
     report_to=None if DISABLE_WANDB else "wandb",
     seed=SEED,
 )
-
 
 # --------------------------
 # Trainer
