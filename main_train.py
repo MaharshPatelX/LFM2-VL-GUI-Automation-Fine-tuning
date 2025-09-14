@@ -106,8 +106,24 @@ def to_messages(example):
         "image": example["image"],
     }
 
-train_ds = train_ds.map(to_messages, remove_columns=train_ds.column_names)
-eval_ds  = eval_ds.map(to_messages,  remove_columns=eval_ds.column_names)
+# Add these parameters to speed up future runs:
+train_ds = train_ds.map(
+    to_messages, 
+    remove_columns=train_ds.column_names,
+    num_proc=8,  # Use multiple CPU cores
+    cache_file_name="cache/train_processed.arrow",  # Cache results
+    desc="Processing train data"
+)
+eval_ds = eval_ds.map(
+    to_messages, 
+    remove_columns=eval_ds.column_names,
+    num_proc=8,
+    cache_file_name="cache/eval_processed.arrow",  # Cache results  
+    desc="Processing eval data"
+)
+
+# train_ds = train_ds.map(to_messages, remove_columns=train_ds.column_names)
+# eval_ds  = eval_ds.map(to_messages,  remove_columns=eval_ds.column_names)
 
 # --------------------------
 # Collate: decode images only per batch
@@ -168,8 +184,9 @@ sft_cfg = SFTConfig(
     warmup_ratio=WARMUP_RATIO,
     weight_decay=WEIGHT_DECAY,
     logging_steps=LOGGING_STEPS,
-    evaluation_strategy="steps",
-    eval_steps=EVAL_STEPS,
+    # Remove these eval-related parameters that aren't supported:
+    # evaluation_strategy="steps",
+    # eval_steps=EVAL_STEPS,
     save_steps=SAVE_STEPS,
     save_total_limit=SAVE_TOTAL_LIMIT,
     optim="adamw_torch_8bit",
@@ -182,6 +199,7 @@ sft_cfg = SFTConfig(
     report_to=None if DISABLE_WANDB else "wandb",
     seed=SEED,
 )
+
 
 # --------------------------
 # Trainer
