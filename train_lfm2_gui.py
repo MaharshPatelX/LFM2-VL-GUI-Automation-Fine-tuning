@@ -135,12 +135,17 @@ def format_gui_sample_lazy(sample: Dict[str, Any]) -> Dict[str, Any]:
 class LazyDataset:
     """Wrapper for streaming datasets that applies formatting on-demand."""
     
-    def __init__(self, dataset: IterableDataset):
+    def __init__(self, dataset: IterableDataset, estimated_length: int):
         self.dataset = dataset
+        self.estimated_length = estimated_length
         
     def __iter__(self):
         for sample in self.dataset:
             yield format_gui_sample_lazy(sample)
+    
+    def __len__(self):
+        """Return estimated length for DataLoader compatibility."""
+        return self.estimated_length
 
 
 def prepare_datasets(train_dataset: IterableDataset, eval_dataset: IterableDataset):
@@ -155,13 +160,17 @@ def prepare_datasets(train_dataset: IterableDataset, eval_dataset: IterableDatas
     """
     print("🔄 Preparing datasets with lazy loading...")
     
-    # Wrap datasets with lazy formatting - no memory loading here!
-    train_lazy = LazyDataset(train_dataset)
-    eval_lazy = LazyDataset(eval_dataset)
+    # Estimated sizes based on 80/20 split of ~635K samples
+    estimated_train_size = 508000
+    estimated_eval_size = 127000
+    
+    # Wrap datasets with lazy formatting and length estimation
+    train_lazy = LazyDataset(train_dataset, estimated_train_size)
+    eval_lazy = LazyDataset(eval_dataset, estimated_eval_size)
     
     print("✅ Datasets prepared with lazy loading:")
-    print("   📚 Train dataset: Streaming + lazy formatting")
-    print("   🧪 Eval dataset: Streaming + lazy formatting")
+    print(f"   📚 Train dataset: Streaming + lazy formatting (est. {estimated_train_size:,} samples)")
+    print(f"   🧪 Eval dataset: Streaming + lazy formatting (est. {estimated_eval_size:,} samples)")
     print("   💾 Memory usage: Minimal (images loaded per batch only)")
     
     return train_lazy, eval_lazy
