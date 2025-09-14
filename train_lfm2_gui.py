@@ -240,11 +240,31 @@ def create_training_config(output_dir: str = "lfm2-vl-gui"):
     Returns:
         SFT configuration object
     """
+    # Calculate max_steps for streaming dataset (since we can't use num_train_epochs)
+    estimated_train_samples = 508000  # ~80% of 635K samples
+    per_device_batch_size = 1
+    gradient_accumulation_steps = 16
+    num_epochs = 1
+    
+    # Effective batch size = per_device_batch_size * gradient_accumulation_steps
+    effective_batch_size = per_device_batch_size * gradient_accumulation_steps
+    
+    # Calculate steps per epoch and total max_steps
+    steps_per_epoch = estimated_train_samples // effective_batch_size
+    max_steps = steps_per_epoch * num_epochs
+    
+    print(f"📊 Training steps calculation:")
+    print(f"   📚 Estimated train samples: {estimated_train_samples:,}")
+    print(f"   🔢 Effective batch size: {effective_batch_size}")
+    print(f"   📈 Steps per epoch: {steps_per_epoch:,}")
+    print(f"   🎯 Max steps (total): {max_steps:,}")
+    
     return SFTConfig(
         output_dir=output_dir,
-        num_train_epochs=1,
-        per_device_train_batch_size=1,
-        gradient_accumulation_steps=16,
+        # Use max_steps instead of num_train_epochs for streaming datasets
+        max_steps=max_steps,
+        per_device_train_batch_size=per_device_batch_size,
+        gradient_accumulation_steps=gradient_accumulation_steps,
         learning_rate=5e-4,
         warmup_ratio=0.1,
         weight_decay=0.01,
