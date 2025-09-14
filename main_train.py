@@ -133,10 +133,10 @@ eval_ds = eval_ds.map(
 # Collate: decode images only per batch
 # --------------------------
 def collate_fn(batch):
-    texts  = [ex["messages"] for ex in batch]
     images = []
+    updated_texts = []
     
-    # Convert images to PIL format if needed
+    # Convert images to PIL format and update messages
     for ex in batch:
         img = ex["image"]
         if not isinstance(img, Image.Image):
@@ -162,10 +162,20 @@ def collate_fn(batch):
                     if hasattr(img, '__dict__'):
                         print(f"Image attributes: {img.__dict__}")
                     raise
+        
         images.append(img)
+        
+        # Update the messages with the converted PIL image
+        messages = ex["messages"].copy()
+        for msg in messages:
+            if msg["role"] == "user":
+                for content_item in msg["content"]:
+                    if content_item["type"] == "image":
+                        content_item["image"] = img
+        updated_texts.append(messages)
 
     enc = processor.apply_chat_template(
-        texts,
+        updated_texts,
         tokenize=True,
         return_tensors="pt",
         return_dict=True,
