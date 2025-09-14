@@ -130,10 +130,9 @@ eval_ds = eval_ds.map(
 )
 
 # --------------------------
-# Collate: decode images only per batch
+# Collate: Let processor handle everything together
 # --------------------------
 def collate_fn(batch):
-    images = []
     updated_texts = []
     
     # Convert images to PIL format and update messages
@@ -163,8 +162,6 @@ def collate_fn(batch):
                         print(f"Image attributes: {img.__dict__}")
                     raise
         
-        images.append(img)
-        
         # Update the messages with the converted PIL image
         messages = ex["messages"].copy()
         for msg in messages:
@@ -174,23 +171,22 @@ def collate_fn(batch):
                         content_item["image"] = img
         updated_texts.append(messages)
 
+    # Let processor handle both text and images together
     enc = processor.apply_chat_template(
         updated_texts,
         tokenize=True,
         return_tensors="pt",
         return_dict=True,
+        add_generation_prompt=False,
+        padding=True,
+        truncation=True,
+        max_length=5000
     )
 
+    # Create labels for training
     labels = enc["input_ids"].clone()
     labels[labels == processor.tokenizer.pad_token_id] = -100
     enc["labels"] = labels
-
-    vision = processor(
-        images,
-        return_tensors="pt",
-        size=IMAGE_SIZE,
-    )
-    enc["pixel_values"] = vision.get("pixel_values")
 
     return enc
 
