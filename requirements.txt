@@ -1,0 +1,10 @@
+torch>=2.0.0
+transformers==4.55.0
+datasets>=2.0.0
+trl>=0.7.0
+peft>=0.6.0
+accelerate>=0.20.0
+bitsandbytes>=0.39.0
+pillow>=9.0.0
+huggingface_hub>=0.16.0
+pyyaml>=6.0.0

@@ -1,0 +1,62 @@
+# LFM2-VL GUI Training Configuration
+
+# Model Configuration
+model:
+  model_id: "LiquidAI/LFM2-VL-450M"  # or "LiquidAI/LFM2-VL-1.6B"
+  torch_dtype: "bfloat16"
+  device_map: "auto"
+  trust_remote_code: true
+
+# Processor Configuration
+processor:
+  max_image_tokens: 256
+  trust_remote_code: true
+
+# Dataset Configuration
+dataset:
+  name: "maharshpatelx/realGUI-800K"
+  test_size: 0.2
+  seed: 42
+
+# LoRA Configuration
+lora:
+  r: 8
+  lora_alpha: 16
+  lora_dropout: 0.05
+  bias: "none"
+  target_modules:
+    - "q_proj"
+    - "v_proj" 
+    - "fc1"
+    - "fc2"
+    - "linear"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  task_type: "CAUSAL_LM"
+
+# Training Configuration
+training:
+  output_dir: "lfm2-vl-gui"
+  num_train_epochs: 1
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 16
+  learning_rate: 5e-4
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  logging_steps: 10
+  optim: "adamw_torch_8bit"
+  gradient_checkpointing: true
+  max_length: 5000
+  report_to: null
+
+# Output Configuration  
+output:
+  local_dir: "./lfm2-vl-gui"
+  hub_model_name: "maharshpatelx/lfm2-vl-gui"
+  push_to_hub: false  # Set to true to automatically push to hub
+
+# System Configuration
+system:
+  disable_wandb: true
+  seed: 42
