@@ -16,6 +16,9 @@ from transformers import AutoModelForImageTextToText, AutoProcessor
 from peft import LoraConfig, get_peft_model
 from trl import SFTConfig, SFTTrainer
 from huggingface_hub import login
+from tqdm import tqdm
+
+
 
 
 def setup_environment():
@@ -126,8 +129,16 @@ def prepare_datasets(train_dataset, eval_dataset):
         Tuple of formatted datasets
     """
     print("🔄 Formatting datasets...")
-    train_formatted = [format_gui_sample(sample) for sample in train_dataset]
-    eval_formatted = [format_gui_sample(sample) for sample in eval_dataset]
+    train_formatted = []
+    for sample in tqdm(train_dataset, desc="Formatting training samples"):
+        train_formatted.append(format_gui_sample(sample))
+
+    eval_formatted = []
+    for sample in tqdm(eval_dataset, desc="Formatting evaluation samples"):
+        eval_formatted.append(format_gui_sample(sample))
+    # train_formatted = [format_gui_sample(sample) for sample in train_dataset]
+    # eval_formatted = [format_gui_sample(sample) for sample in eval_dataset]
+    
     
     print("✅ Datasets formatted:")
     print(f"   📚 Train samples: {len(train_formatted)}")
